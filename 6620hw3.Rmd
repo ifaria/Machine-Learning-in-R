@@ -1,0 +1,250 @@
+---
+author: "Ignacio Faria"
+title: "Stat 6620-01, Homework 3"
+date: "April 20, 2016"
+output: pdf_document
+---
+
+Step 1 - Collecting Data
+
+The dataset we collected is of 5559 text messages with only two variables: the type of message (ham or spam), and the message itself. The datset comes from a file entitled sms_raw.csv. It was downloaded and placed in the R working directory.
+
+```{r Data Collection, echo=TRUE}
+setwd('C:/Users/Isaac/OneDrive/Documents')
+sms_raw <- read.csv("sms_spam.csv", stringsAsFactors = FALSE)
+```
+
+Step 2 - Exploring and Preparing the Data
+
+We observe the structure of the data and convert the 'type' variable into a numeric factor.
+
+```{r Observe Structure, echo=TRUE}
+sms_raw$type <- factor(sms_raw$type)
+str(sms_raw$type)
+table(sms_raw$type)
+```
+
+We find that the structure of the data cannot be worked with until it is further organized. Our next step will be to use the VectorSource function to tell the corpus command that we intend on compilining the text messages into a corpus.
+
+```{r Create Corpus}
+library(tm)
+sms_corpus <- VCorpus(VectorSource(sms_raw$text))
+```
+
+Next, we must remove unnecessary words like 'and,' 'but,' and 'or,' as well as numbers and punctuation. To do this, we will employ a series of transformation and mapping techniques.
+
+```{r}
+sms_corpus_clean <- tm_map(sms_corpus, content_transformer(tolower))
+sms_corpus_clean <- tm_map(sms_corpus_clean, removeNumbers)
+sms_corpus_clean <- tm_map(sms_corpus_clean, removeWords, stopwords())
+sms_corpus_clean <- tm_map(sms_corpus_clean, removePunctuation) 
+sms_corpus_clean <- tm_map(sms_corpus_clean, stemDocument)
+sms_corpus_clean <- tm_map(sms_corpus_clean, stripWhitespace)
+```
+
+After the data is cleaned up, we need to observe the frequency in which each word is used, to do this we will use a sparse matrix.
+
+```{r CreateDocumentMatrix}
+sms_dtm <- DocumentTermMatrix(sms_corpus_clean)
+```
+
+With the sparse matrix we will be able to split the data into a training and test set and the labels.
+
+```{r CreateTestandTrainingSets}
+sms_dtm_train <- sms_dtm[1:4169, ]
+sms_dtm_test  <- sms_dtm[4170:5559, ]
+sms_train_labels <- sms_raw[1:4169, ]$type
+sms_test_labels  <- sms_raw[4170:5559, ]$type
+```
+
+For a visualization of the proportions of words which comprised either ham or spam, we will create a word cloud. These three represent all the texts, spam, and ham, respectively. 
+
+```{r CreateWordcloud}
+library(wordcloud)
+spam <- subset(sms_raw, type == "spam")
+ham  <- subset(sms_raw, type == "ham")
+wordcloud(sms_corpus_clean, min.freq = 50, random.order = FALSE)
+wordcloud(spam$text, max.words = 40, scale = c(3, 0.5))
+wordcloud(ham$text, max.words = 40, scale = c(3, 0.5))
+```
+
+The next step is to find the most frequently used words.
+
+```{r ObserveFrequency, include=FALSE}
+sms_dtm_freq_train <- removeSparseTerms(sms_dtm_train, 0.999)
+sms_dtm_freq_train
+findFreqTerms(sms_dtm_train, 5)
+sms_freq_words <- findFreqTerms(sms_dtm_train, 5)
+```
+
+To allow the function to run smoothly, we must make the document matrix switch frequency counts into a catagorical variable.
+
+```{r ConvertVariables}
+sms_dtm_freq_train <- sms_dtm_train[ , sms_freq_words]
+sms_dtm_freq_test <- sms_dtm_test[ , sms_freq_words]
+convert_counts <- function(x) {
+  x <- ifelse(x > 0, "Yes", "No")
+}
+sms_train <- apply(sms_dtm_freq_train, MARGIN = 2, convert_counts)
+sms_test  <- apply(sms_dtm_freq_test, MARGIN = 2, convert_counts)
+```
+
+Step 3 - Training a Model on the Data
+
+Now we train the model using a Naive Bayes algorithm.
+
+```{r ImplimentNBayesAlgorithm}
+library(e1071)
+sms_classifier <- naiveBayes(sms_train, sms_train_labels)
+```
+
+Step 4 - Evaluating Model Performance
+
+We will now make a prediction about how our classifier will work and use it to evaluate the performance of the classifier.
+
+```{r, EvaluateModel, echo=FALSE}
+library("knitr")
+knitr::opts_chunk$set(error = TRUE)
+library(gmodels)
+sms_test_pred <- predict(sms_classifier, sms_test)
+CrossTable(sms_test_pred, sms_test_labels,
+           prop.chisq = FALSE, prop.t = FALSE, prop.r = FALSE,
+           dnn = c('predicted', 'actual'))
+```
+
+This shows how effective our algorithm worked; 99.5% of everything classified as ham was actually ham, and 83.6% of everything classified as spam was actually spam.
+
+Step 5 - Improving Model Performance
+
+The model worked very well, but it is important to reduce the type 1 and type 2 error. To do this, we will add a Laplace estimator.
+```{r OptimizeModel}
+sms_classifier2 <- naiveBayes(sms_train, sms_train_labels, laplace = 1)
+sms_test_pred2 <- predict(sms_classifier2, sms_test)
+CrossTable(sms_test_pred2, sms_test_labels,
+           prop.chisq = FALSE, prop.t = FALSE, prop.r = FALSE,
+           dnn = c('predicted', 'actual'))
+```
+The improvment was minor, but it was an improvement!
+
+Part 2 - Interesting Dataset: Disaster and Casual Tweets
+
+Step 1 - Collecting the Data
+
+This is a dataset from Kaggle regarding tweets during the event of a disaster.The objective is to see if we can determine if a tweet is relevant or not to the disaster. The original dataset had a relevance catagory which also included 16 observations of 'can't decide,' these was removed.
+
+The first step is to read in the data.
+
+```{r 1DataCollection, echo=TRUE}
+dtweets <- read.csv("dtweets.csv", stringsAsFactors = FALSE)
+```
+
+Step 2 - Exploring and Preparing the Data
+
+We must convert the variable 'Type' into a factor so that it can be easily computed.
+
+```{r ObserveStructure, include=FALSE}
+dtweets$Type <- factor(dtweets$Type)
+str(dtweets$Type)
+table(dtweets$Type)
+```
+
+The next step is to create a text file to store all the data, and clean it up. Cleaing it in this case would mean to remove unnecessary words, which we will do through a series of transformation and mapping techniques.
+
+```{r 1CreateCorpus}
+library(tm)
+dtweet_corpus <- VCorpus(VectorSource(dtweets$Tweet))
+dtweet_corpus_clean <- tm_map(dtweet_corpus, content_transformer(tolower))
+dtweet_corpus_clean <- tm_map(dtweet_corpus_clean, removeNumbers)
+dtweet_corpus_clean <- tm_map(dtweet_corpus_clean, removeWords, stopwords())
+dtweet_corpus_clean <- tm_map(dtweet_corpus_clean, removePunctuation) 
+dtweet_corpus_clean <- tm_map(dtweet_corpus_clean, stemDocument)
+dtweet_corpus_clean <- tm_map(dtweet_corpus_clean, stripWhitespace)
+```
+
+Now that it is clean, we must organize it into a sparse matrix, which we will do with the Document Term Matrix function.
+
+```{r 1CreateDocumentMatrix}
+dtweet_dtm <- DocumentTermMatrix(dtweet_corpus_clean)
+```
+
+With the document term matrix, we an create our test and training data sets.
+
+```{r 1CreateTestandTrainingSets}
+dtweet_dtm_train <- dtweet_dtm[1:9000, ]
+dtweet_dtm_test  <- dtweet_dtm[9001:10860, ]
+dtweet_train_labels <- dtweets[1:9000, ]$Type
+dtweet_test_labels  <- dtweets[9001:10860, ]$Type
+```
+
+It would be helpful to see the frequency of which words appear in either relevant or not relevant tweets. These words will be what our filter uses to predict a tweet is relevant or not.
+
+```{r 1CreateWordcloud, echo=FALSE}
+library(wordcloud)
+Not_Relevant <- subset(dtweets, Type == "Not Relevant")
+Relevant  <- subset(dtweets, Type == "Relevant")
+```
+
+```{r word clouds, echo=TRUE, message=TRUE, warning=FALSE}
+wordcloud(dtweet_corpus_clean, min.freq = 50, random.order = FALSE)
+wordcloud(Not_Relevant$Tweet, max.words = 40, scale = c(6, 2))
+wordcloud(Relevant$Tweet, max.words = 40, scale = c(6, 2))
+```
+
+```{r 1ObserveFrequency, include=FALSE}
+dtweet_dtm_freq_train <- removeSparseTerms(dtweet_dtm_train, 0.999)
+dtweet_dtm_freq_train
+findFreqTerms(dtweet_dtm_train, 5)
+dtweet_freq_words <- findFreqTerms(dtweet_dtm_train, 5)
+```
+
+Now we need to create the test and trainging data sets.
+
+```{r 1ConvertVariables, include=FALSE}
+dtweet_dtm_freq_train <- dtweet_dtm_train[ , dtweet_freq_words]
+dtweet_dtm_freq_test <- dtweet_dtm_test[ , dtweet_freq_words]
+convert_counts <- function(x) {
+  x <- ifelse(x > 0, "Yes", "No")
+}
+dtweet_train <- apply(dtweet_dtm_freq_train, MARGIN = 2, convert_counts)
+dtweet_test  <- apply(dtweet_dtm_freq_test, MARGIN = 2, convert_counts)
+```
+
+Step 3 - Training a Model on the Data
+
+Here we apply the Naive Bayes algorithm on the training set.
+
+```{r 1ImplimentNBayesAlgorithm, include=FALSE}
+library(e1071)
+dtweet_classifier <- naiveBayes(dtweet_train, dtweet_train_labels)
+```
+
+Step 4 - Evaluating Model Performance
+
+Lets observe the accuracy to which our algorithm worked.
+
+```{r, 1EvaluateModel, echo=TRUE}
+library("knitr")
+knitr::opts_chunk$set(error = TRUE)
+library(gmodels)
+dtweet_test_pred <- predict(dtweet_classifier, dtweet_test)
+CrossTable(dtweet_test_pred, dtweet_test_labels,
+           prop.chisq = FALSE, prop.t = FALSE, prop.r = FALSE,
+           dnn = c('predicted', 'actual'))
+```
+
+The algorithm accuratly predicted non-relevant tweets with 81.4% accuracy and relevant tweets with 77.5% accuracy, but it was wrong about relevant tweets 22.5% of the time and non-relevant tweets 18.6% of the time.
+
+Step 5 - Improving Model Performance
+
+To improve upon our last model, we will include a Laplace estimator.
+
+```{r 1OptimizeModel, echo=TRUE}
+dtweet_classifier2 <- naiveBayes(dtweet_train, dtweet_train_labels, laplace = 1)
+dtweet_test_pred2 <- predict(dtweet_classifier2, dtweet_test)
+CrossTable(dtweet_test_pred2, dtweet_test_labels,
+           prop.chisq = FALSE, prop.t = FALSE, prop.r = FALSE,
+           dnn = c('predicted', 'actual'))
+```
+
+This new algorithm acurately predicted non-relevant tweets at 81.9% and relevant tweets at 76.7% (whcih was actually worse). Relevant tweets were wrongly predicted at 23.3% of the time and non-relevant tweets at 18.1%. The Laplace estimator seems to be more prone to type 2 error and slightly better at reducing type 1 error.
+
