@@ -1,0 +1,56 @@
+---
+title: "Using Rule Learners to Identify Poisonous Mushrooms"
+author: "Ignacio Faria"
+date: "April 30, 2016"
+output: pdf_document
+---
+
+We will examine a dataset of 8,124 mushrooms and their features to determine if we can predict if a mushroom is either poisonous or edible.
+
+### Step 1 - Collecting Data ---
+
+```{r Data input, echo=TRUE}
+setwd("~/")
+mushrooms <- read.csv("mushrooms.csv", stringsAsFactors = TRUE)
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+### Step 2 - Exploring and Preparing the Data ---
+
+Now that we have the data, we must observe how it is set up. Our most important variable in this dataset is mushroom type; is the mushroom poisonous or edible? Rule learners work best when the levels are evenly distributed.
+
+```{r Exploring the data, echo=FALSE}
+str(mushrooms)
+mushrooms$veil_type <- NULL
+table(mushrooms$type)
+```
+
+We observed that "veil_type" had one level, so it was worth omitting and also that the mushrooms edibility were also close to even.
+
+### Step 3 - Training a Model on the Data ---
+
+To develop this model, we will use a 1R (One Rule) algorithm to train this dataset.
+
+```{r Training the dataset, echo=TRUE}
+library(RWeka)
+mushroom_1R <- OneR(type ~ ., data = mushrooms)
+```
+
+### Step 4 - Evaluating Model Performance ---
+
+```{r Evaluating the model, echo=TRUE}
+summary(mushroom_1R)
+```
+The one rule learner worked well.  It was accurate 98.52% of the time and only labeled 120 edible mushrooms as poisonous.  
+
+### Step 5 - Improving Model Performance ---
+
+This time we will apply a RIPPER rule learning algorithm and examine its performance.
+
+```{r Applying RIPPER, echo=TRUE}
+mushroom_JRip <- JRip(type ~ ., data = mushrooms)
+mushroom_JRip
+summary(mushroom_JRip)
+```
+
+The algorithm used 8 rules and worked with perfect accuracy.
