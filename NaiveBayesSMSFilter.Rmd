@@ -1,6 +1,6 @@
 ---
 author: "Ignacio Faria"
-title: "Stat 6620-01, Homework 3"
+title: "Naive Bayes SMS Spam Filer"
 date: "April 20, 2016"
 output: pdf_document
 ---
