@@ -1,0 +1,79 @@
+---
+title: "Using C.50 to Classify Risky Loan Applicants"
+author: "Ignacio Faria"
+date: "April 30, 2016"
+output: pdf_document
+---
+### Step 1: Collecting the Data ---
+
+It is often difficult to determine which applicants may make a loan risky or not; we will use a C5.0 algorithm to classify risky applicants. The data we will be using will be in terms of Deutsche Marks (DM).
+
+```{r Data input, include=FALSE}
+setwd("~/")
+credit <- read.csv("credit.csv")
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Step 2 - Exploring and Preparing the Data ---
+
+Two important features within this data that we should observe are the applicants' checking and savings balance. We would assume that the larger the accounts, the lower the likelihood of default.
+
+```{r Exploring the data, echo=FALSE}
+table(credit$checking_balance)
+table(credit$savings_balance)
+```
+
+The tables show us the number of applicants (out of 1000) intervaled between account sizes. The following summaries will show us the distribution of the applicants' loans requested and terms.
+```{r Exploring the data2, echo=FALSE}
+summary(credit$months_loan_duration)
+summary(credit$amount)
+```
+Now that we have a general idea about how the data looks, we can begin training the dataset. We will train 90% of it and use the final 10% to test against. We will also need to randomize the data, since the set is not in a random order.
+```{r Randomizing the data, echo=TRUE}
+set.seed(5825)
+credit_rand <- credit[order(runif(1000)), ]
+credit_train <- credit_rand[1:900, ]
+credit_test <- credit_rand[901:1000, ]
+prop.table(table(credit_train$default))
+prop.table(table(credit_test$default))
+```
+The table shows us the proportions of the training and testing data, which appear similar.
+
+### Step 3 - Training a Model on the Data ---
+
+The C5.0 algorithm will be used to examine this data. Once it is loaded, we will apply the data within it. Within the data, however, the 17th column is the one which marks if the applicant has defaulted; we will specify to the model to exclude it from the training set but to supply it as the target factor vector for classification.
+```{r Model training, echo=TRUE}
+library(C50)
+credit_model <- C5.0(credit_train[-17], credit_train$default)
+summary(credit_model)
+```
+This summary tells us how the decision tree weighs the applicants.
+
+### Step 4 - Evaluating Model Performance ---
+
+To evaluate, we will create a vector of predicted class values and place them on a confusion matrix.
+```{r Model evaluation, echo=TRUE}
+credit_pred <- predict(credit_model, credit_test)
+library(gmodels)
+CrossTable(credit_test$default, credit_pred,
+           prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE,
+           dnn = c('actual default', 'predicted default'))
+```
+We see that our model worked with 73% accuracy.
+
+### Step 5 - Improving Model Performance ---
+
+The score of 73% is quite poor, so we will supplement our decision tree by employing a boosting technique. This process will create multiple weak decision trees into a team that would be greater than any single one. In this model, we will include 100 trees to improve our decision making.
+
+```{r Model improvment, echo=TRUE}
+credit_boost10 <- C5.0(credit_train[-17], credit_train$default,
+                       trials = 100)
+credit_boost_pred10 <- predict(credit_boost10, credit_test)
+CrossTable(credit_test$default, credit_boost_pred10,
+           prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE,
+           dnn = c('actual default', 'predicted default'))
+```
+
+With 100 trees added into this model, the accuracy only increased by 3%, to 76%.
+
+
