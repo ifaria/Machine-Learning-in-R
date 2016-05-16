@@ -1,0 +1,79 @@
+---
+title: "Linear Regression Insurance Risk and Beneficiary Demographics"
+author: "Ignacio Faria"
+date: "May 7, 2016"
+output: pdf_document
+---
+
+For this analysis, we we examine the demographic variabes of beneficiaries enrolled in an insurance plan and how they affect risk for medical expenses.
+
+### Step 1 - Collecting Data
+
+The first step is to collect the data, which was obtained from the U.S. Census Bureau.  This dataset contains 1388 examples.
+
+```{r Data input, echo=TRUE}
+setwd("C:/Users/Isaac/Documents")
+knitr::opts_chunk$set(echo = TRUE)
+insurance <- read.csv("insurance.csv", stringsAsFactors = TRUE)
+```
+
+### Step 2 - Exploring and preparing the data
+
+To get a general understanding of how the data looks, we examine 1) how the dataset is structured, 2) the summary statistics of the expenses (our main variable), 3) the distribtution of the expenses, and 4) the allocation of the beneficiaries' locations, 
+
+```{r Observing the Data}
+str(insurance)
+summary(insurance$expenses)
+hist(insurance$expenses)
+table(insurance$region)
+```
+
+Two of the assumptions of linear regression are that there is little to no correlation between the explanatory variables and that the variation of the residuals is homoscedastic; we will check for both of these with the correlation function and by observing the scatterplot matrix.
+
+```{r Checking for Collinearity and Constant Variance}
+library(psych)
+cor(insurance[c("age", "bmi", "children", "expenses")])
+pairs(insurance[c("age", "bmi", "children", "expenses")])
+pairs.panels(insurance[c("age", "bmi", "children", "expenses")])
+```
+
+This last scatterplot is more informative and better shows the relationship between the y and x variables, and that everything appears to follow the assumptions of normality. Now that our assumptions are not violated, we may procede with training the dataset.
+
+### Step 3 - Training a Model on the Data
+
+We will use a general linear model with every variable from the dataset.
+
+```{r Training the Data}
+ins_model <- lm(expenses ~ age + children + bmi + sex + smoker + region,
+                data = insurance)
+ins_model
+```
+
+Here, we can clearly see the estimates of the parameters. These estimates indicate the expected increase in the y variable (medical charges) for everying single unit increase in an explanatory variabe, with all other variables remaining the same.
+
+### Step 4 - Evaluating Model Performance
+
+```{r Model Evaluation}
+summary(ins_model)
+```
+
+The summary output demonstrates the value of the parameters, as well as the spread of the residuals.
+
+### Step 5 - Improving Model Performance
+
+As we observed in the scatterplot matrix above, it may improve the model by inputting the age variable as a square, since it is not linear.
+
+Another variable that we can improve in is bmi. It seems likely that bmi will have little effect if within a healthy range (typically below 30). We will account for this effect by making a binary indicator: 1 for above 30, 0 for below.
+
+It is also reasonable to assume that bmi and smoking have interacting effects with regard to health insurance charges. We will include an interaction term.
+
+```{r Improving the Model}
+insurance$age2 <- insurance$age^2
+insurance$bmi30 <- ifelse(insurance$bmi >= 30, 1, 0)
+ins_model2 <- lm(expenses ~ age + age2 + children + bmi + sex +
+                   bmi30*smoker + region, data = insurance)
+summary(ins_model2)
+```
+
+As we can see from the summary, the multiple R-square is higher, thus more of the variation in the model is explained.
+ 
