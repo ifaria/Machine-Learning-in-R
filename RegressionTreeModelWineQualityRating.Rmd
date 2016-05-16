@@ -1,0 +1,94 @@
+---
+title: "Using a Regression Tree Model to Predict Wine Quality"
+author: "Ignacio Faria"
+date: "May 7, 2016"
+output: pdf_document
+---
+
+We will be developing a wine rating model using a regression tree model. The variables will be the wines' physio-chemical properties. 
+
+### Step 1 - Collecting the Data
+
+The first step is to input the data. This dataset includes 4,898 examples of white wines from Portugal, as well as their 12 variables (including the rating) from which we will be analyzing.
+
+```{r Data input, include=FALSE}
+setwd("C:/Users/Isaac/Documents")
+knitr::opts_chunk$set(echo = TRUE)
+wine <- read.csv("whitewines.csv")
+```
+
+### Step 2 - Exploring and Preparing the Data
+
+To build a general understanding of the data, we will observe the structure of the data, the distribution of the wine quality, and the summary statistics of the wine.
+
+```{r Exploring the Data}
+str(wine)
+hist(wine$quality)
+summary(wine)
+```
+
+Everything appears to be regular and the data appear to be normal.
+
+### Step 3 - Training a Model on the Data
+
+We begin by training 75% of the dataset and using the final 25% as the test data. The next step is to model the regression trees with quality as the outcome variable.
+
+```{r Training the dataset}
+library(rpart)
+wine_train <- wine[1:3750, ]
+wine_test <- wine[3751:4898, ]
+m.rpart <- rpart(quality ~ ., data = wine_train)
+summary(m.rpart)
+```
+
+To better understand the decision trees, we will plot them on a diagram.
+
+```{r Plotting Decision Trees into a Diagram, eval=FALSE, include=FALSE}
+library(rpart.plot)
+rpart.plot(m.rpart, digits = 3)
+rpart.plot(m.rpart, digits = 4, fallen.leaves = TRUE, type = 3, extra = 101)
+```
+
+This tree gives us a clear understanding of how the wines are allocated based on their properties.
+
+### Step 4 - Evaluating Model Performance
+
+We will evaluate this model by observing the correlation coefficient between our test dataset and the prediction function that is using our training data.
+
+```{r Evaluating Model Performance}
+p.rpart <- predict(m.rpart, wine_test)
+summary(p.rpart)
+summary(wine_test$quality)
+cor(p.rpart, wine_test$quality)
+```
+
+This correlation measures only predictions and true values and does not include how far off the predictions were from the true values. The correlation of .4931608 is mediocre at best. In order to view the distances from our predictions and the true values, we will use a mean absolute error function.
+
+```{r Measuring Distances Between Prediction and Actual Values}
+MAE <- function(actual, predicted) {
+  mean(abs(actual - predicted))  
+}
+MAE(p.rpart, wine_test$quality)
+mean(wine_train$quality)
+MAE(5.886933, wine_test$quality)
+```
+
+We observe our mean absolute error predictions to be .5732104, which is on a scales from 1-10, which is quite good. We can also see that the mean quality of the wine is 5.886933. The mean absolute error against our actual mean quality is .5752549.
+
+### Step 5 - Improving Model Performance
+
+To improve our classification, we will use an M5-prime algorithm.
+
+```{r Imroving Model Performance}
+library(RWeka)
+m.m5p <- M5P(quality ~ ., data = wine_train)
+m.m5p
+summary(m.m5p)
+p.m5p <- predict(m.m5p, wine_test)
+summary(p.m5p)
+cor(p.m5p, wine_test$quality)
+MAE(wine_test$quality, p.m5p)
+```
+
+This improvement approach was actually inferior to uor previous model.
+
